@@ -106,5 +106,11 @@ jhipster:
 # More documentation is available at:
 # https://www.jhipster.tech/common-application-properties/
 # ===================================================================
-
-# application:
+application:
+  scheduleTask:
+    commitment-generation:
+      # 매 5분마다 실행 (Cron 표현식)
+      cron: '0 */1 * * * ?'
+  ethereum:
+    # 이더리움 노드 접속을 위한 URL (예: 로컬 노드 또는 Infura)
+    node-url: "http://localhost:8545"
