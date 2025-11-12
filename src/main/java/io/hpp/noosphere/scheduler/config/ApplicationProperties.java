@@ -1,6 +1,12 @@
 package io.hpp.noosphere.scheduler.config;
 
+import jakarta.validation.constraints.NotNull;
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Properties specific to noosphereScheduler.
@@ -43,117 +49,55 @@ public class ApplicationProperties {
     }
 
 
+    @Getter
+    @Setter
     public static class ScheduleTask {
 
         private final CommitmentGeneration commitmentGeneration = new CommitmentGeneration();
 
-        public CommitmentGeneration getCommitmentGeneration() {
-            return commitmentGeneration;
-        }
-
+        @Setter
+        @Getter
         public static class CommitmentGeneration {
-
             private String enabled;
-
             private String cron;
 
-            public String getCron() {
-                return cron;
-            }
-
-            public void setCron(String cron) {
-                this.cron = cron;
-            }
-
-            public String getEnabled() {
-                return enabled;
-            }
-
-            public void setEnabled(String enabled) {
-                this.enabled = enabled;
-            }
         }
     }
 
+    @Getter
+    @Setter
     public static class Chain {
 
         private Boolean enabled;
         private String rpcUrl;
         private Long trailHeadBlocks;
         private String routerAddress;
+        private final Connection connection = new Connection();
         private final Wallet wallet = new Wallet();
         private final SnapshotSync snapshotSync = new SnapshotSync();
+        private final GasConfig gasConfig  = new GasConfig();
 
-        public Boolean getEnabled() {
-            return enabled;
+        @Setter
+        @Getter
+        public static class Connection {
+            private Integer timeout;
+            private Integer readTimeout;
+            private Integer writeTimeout;
         }
 
-        public void setEnabled(Boolean enabled) {
-            this.enabled = enabled;
-        }
-
-        public String getRpcUrl() {
-            return rpcUrl;
-        }
-
-        public void setRpcUrl(String rpcUrl) {
-            this.rpcUrl = rpcUrl;
-        }
-
-        public Long getTrailHeadBlocks() {
-            return trailHeadBlocks;
-        }
-
-        public void setTrailHeadBlocks(Long trailHeadBlocks) {
-            this.trailHeadBlocks = trailHeadBlocks;
-        }
-
-        public String getRouterAddress() {
-            return routerAddress;
-        }
-
-        public void setRouterAddress(String routerAddress) {
-            this.routerAddress = routerAddress;
-        }
-
-        public Wallet getWallet() {
-            return wallet;
-        }
-
-        public SnapshotSync getSnapshotSync() {
-            return snapshotSync;
-        }
+        @Setter
+        @Getter
         public static class Wallet {
 
             private Long maxGasLimit;
             private String privateKey;
             private String paymentAddress;
-
-            public Long getMaxGasLimit() {
-                return maxGasLimit;
-            }
-
-            public void setMaxGasLimit(Long maxGasLimit) {
-                this.maxGasLimit = maxGasLimit;
-            }
-
-            public String getPrivateKey() {
-                return privateKey;
-            }
-
-            public void setPrivateKey(String privateKey) {
-                this.privateKey = privateKey;
-            }
-
-            public String getPaymentAddress() {
-                return paymentAddress;
-            }
-
-            public void setPaymentAddress(String paymentAddress) {
-                this.paymentAddress = paymentAddress;
-            }
+            @NotNull
+            private List<String> allowedSimErrors = new ArrayList<>();
         }
 
+        @Setter
+        @Getter
         public static class SnapshotSync {
 
             private Long sleep;
@@ -161,37 +105,13 @@ public class ApplicationProperties {
             private Long startingSubId;
             private Long syncPeriod;
 
-            public Long getSleep() {
-                return sleep;
-            }
+        }
 
-            public void setSleep(Long sleep) {
-                this.sleep = sleep;
-            }
-
-            public Long getBatchSize() {
-                return batchSize;
-            }
-
-            public void setBatchSize(Long batchSize) {
-                this.batchSize = batchSize;
-            }
-
-            public Long getStartingSubId() {
-                return startingSubId;
-            }
-
-            public void setStartingSubId(Long startingSubId) {
-                this.startingSubId = startingSubId;
-            }
-
-            public Long getSyncPeriod() {
-                return syncPeriod;
-            }
-
-            public void setSyncPeriod(Long syncPeriod) {
-                this.syncPeriod = syncPeriod;
-            }
+        @Setter
+        @Getter
+        public static class GasConfig {
+            private Double priceMultiplier;
+            private Double limitMultiplier;
         }
     }
 }

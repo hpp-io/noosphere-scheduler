@@ -179,6 +179,10 @@ dependencies {
     implementation "org.web3j:abi:${web3jVersion}"
     implementation "org.web3j:codegen:${web3jVersion}"
 
+    //lombok dependencies
+    compileOnly 'org.projectlombok:lombok:1.18.32'
+    annotationProcessor 'org.projectlombok:lombok:1.18.32'
+
 }
 
 task cleanResources(type: Delete) {
@@ -338,8 +342,8 @@ selectedContracts.each { contractName ->
 
     doLast {
       def foundryOutDir = file("./contract/out")
-      def outputDir = file("src/main/java/io/hpp/noosphere/agent/web3j/contracts")
-      def packageName = "io.hpp.noosphere.agent.web3j.contracts"
+      def outputDir = file("src/main/java/io/hpp/noosphere/scheduler/web3j/contracts")
+      def packageName = "io.hpp.noosphere.scheduler.web3j.contracts"
       def tempDir = file("build/tmp/web3j")
 
       outputDir.mkdirs()
