@@ -106,5 +106,24 @@ jhipster:
 # More documentation is available at:
 # https://www.jhipster.tech/common-application-properties/
 # ===================================================================
+application:
+  scheduleTask:
+    commitment-generation:
+      enabled: true
+      # 매 5분마다 실행 (Cron 표현식)
+      cron: '0 */1 * * * ?'
+  chain:
+    enabled: true
+    rpcUrl: 'http://localhost:8545'
+    trailHeadBlocks: 10
+    routerAddress: '${REGISTRY_ADDRESS:}'
+    wallet:
+      maxGasLimit: 1000000
+      privateKey: '${WALLET_PRIVATE_KEY:}'
+      paymentAddress: '${PAYMENT_ADDRESS:}'
+    snapshotSync:
+      sleep: 1
+      batchSize: 100
+      startingSubId: 0
+      syncPeriod: 3000
 
-# application:
