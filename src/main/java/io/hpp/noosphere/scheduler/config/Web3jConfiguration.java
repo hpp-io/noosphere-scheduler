@@ -12,12 +12,12 @@ import org.web3j.protocol.http.HttpService;
 @Configuration
 public class Web3jConfiguration {
 
-    @Value("${application.ethereum.node-url}")
-    private String ethereumNodeUrl;
+    @Value("${application.chain.rpcUrl}")
+    private String rpcUrl;
 
     @Bean
     public Web3j web3j() {
         // HttpService를 사용하여 Web3j 인스턴스를 생성하고 빈으로 등록합니다.
-        return Web3j.build(new HttpService(ethereumNodeUrl));
+        return Web3j.build(new HttpService(rpcUrl));
     }
 }

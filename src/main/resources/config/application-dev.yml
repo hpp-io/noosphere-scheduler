@@ -109,8 +109,21 @@ jhipster:
 application:
   scheduleTask:
     commitment-generation:
+      enabled: true
       # 매 5분마다 실행 (Cron 표현식)
       cron: '0 */1 * * * ?'
-  ethereum:
-    # 이더리움 노드 접속을 위한 URL (예: 로컬 노드 또는 Infura)
-    node-url: "http://localhost:8545"
+  chain:
+    enabled: true
+    rpcUrl: 'http://localhost:8545'
+    trailHeadBlocks: 10
+    routerAddress: '${REGISTRY_ADDRESS:}'
+    wallet:
+      maxGasLimit: 1000000
+      privateKey: '${WALLET_PRIVATE_KEY:}'
+      paymentAddress: '${PAYMENT_ADDRESS:}'
+    snapshotSync:
+      sleep: 1
+      batchSize: 100
+      startingSubId: 0
+      syncPeriod: 3000
+
