@@ -103,7 +103,7 @@ public class ApplicationProperties {
             private Long sleep;
             private Long batchSize;
             private Long startingSubId;
-            private Long syncPeriod;
+            private String syncPeriod;
 
         }
 
