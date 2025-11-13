@@ -121,9 +121,20 @@ application:
       maxGasLimit: 1000000
       privateKey: '${WALLET_PRIVATE_KEY:}'
       paymentAddress: '${PAYMENT_ADDRESS:}'
+      allowedSimErrors:
+        - 'execution reverted'
+        - 'out of gas'
     snapshotSync:
       sleep: 1
       batchSize: 100
       startingSubId: 0
       syncPeriod: 3000
+    connection:
+      timeout: 30000
+      readTimeout: 60000
+      writeTimeout: 60000
+    gasConfig:
+      priceMultiplier: 1.2
+      limitMultiplier: 1.3
+
 
