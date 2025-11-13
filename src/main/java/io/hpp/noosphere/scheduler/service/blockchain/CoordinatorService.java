@@ -23,6 +23,7 @@ import org.web3j.abi.datatypes.generated.*;
 import org.web3j.crypto.Hash;
 import org.web3j.crypto.Sign;
 import org.web3j.protocol.Web3j;
+import org.web3j.protocol.core.methods.response.TransactionReceipt;
 import org.web3j.utils.Numeric;
 
 import java.math.BigInteger;
@@ -319,4 +320,23 @@ public class CoordinatorService {
                 return !Arrays.equals(commitment, new byte[32]);
             });
     }
+
+    /**
+     * Prepares the next interval for a subscription on the coordinator contract.
+     * This is typically called by a node to signal readiness for the upcoming interval.
+     *
+     * @param subscriptionId The ID of the subscription.
+     * @param nextInterval   The next interval number to prepare.
+     * @param nodeWallet     The wallet address of the node preparing the interval.
+     * @return A CompletableFuture containing the transaction receipt of the operation.
+     */
+    public CompletableFuture<TransactionReceipt> prepareNextInterval(
+            BigInteger subscriptionId,
+            BigInteger nextInterval,
+            String nodeWallet
+    ) {
+        log.debug("Preparing next interval {} for subscription {} with node wallet {}", nextInterval, subscriptionId, nodeWallet);
+        return web3DelegateeCoordinatorService.prepareNextInterval(subscriptionId, nextInterval, nodeWallet);
+    }
+
 }
