@@ -1,5 +1,6 @@
 package io.hpp.noosphere.scheduler.config;
 
+import io.hpp.noosphere.scheduler.service.blockchain.KeystoreService;
 import okhttp3.OkHttpClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,10 +18,10 @@ public class Web3jConfig {
 
     private final ApplicationProperties.Chain chainConfig;
 
-    // 기본 timeout 값들 정의
-    private static final int DEFAULT_CONNECT_TIMEOUT = 30000; // 30초
-    private static final int DEFAULT_READ_TIMEOUT = 30000; // 30초
-    private static final int DEFAULT_WRITE_TIMEOUT = 30000; // 30초
+    // Default timeout values
+    private static final int DEFAULT_CONNECT_TIMEOUT = 30000; // 30 seconds
+    private static final int DEFAULT_READ_TIMEOUT = 30000; // 30 seconds
+    private static final int DEFAULT_WRITE_TIMEOUT = 30000; // 30 seconds
 
     public Web3jConfig(ApplicationProperties applicationProperties) {
         this.chainConfig = applicationProperties.getChain();
@@ -30,7 +31,7 @@ public class Web3jConfig {
     public Web3j web3j() {
         String rpcUrl = chainConfig.getRpcUrl();
 
-        // null-safe한 방식으로 timeout 값들 가져오기
+        // Get timeout values in a null-safe way
         ApplicationProperties.Chain.Connection connection = chainConfig.getConnection();
 
         int connectTimeout = getTimeoutValue(connection != null ? connection.getTimeout() : null, DEFAULT_CONNECT_TIMEOUT);
@@ -47,15 +48,20 @@ public class Web3jConfig {
     }
 
     /**
-     * timeout 값이 null인 경우 기본값을 반환하는 헬퍼 메서드
+     * Helper method to return a default value if the timeout is null.
      */
     private int getTimeoutValue(Integer timeout, int defaultValue) {
         return timeout != null ? timeout : defaultValue;
     }
 
     @Bean
-    public Credentials credentials() {
-        return Credentials.create(chainConfig.getWallet().getPrivateKey());
+    public Credentials credentials(KeystoreService keystoreService) {
+        String keyAlias = chainConfig.getWallet().getKeystore().getKeys().getEth();
+        if (keyAlias == null || keyAlias.isBlank()) {
+            throw new IllegalStateException("Ethereum key alias 'application.chain.wallet.keystore.keys.eth' is not configured.");
+        }
+        // Delegate credential loading to the centralized KeystoreService
+        return keystoreService.getCredentials(keyAlias);
     }
 
     @Bean

@@ -44,16 +44,14 @@ public class WalletService {
         Web3j web3j,
         Web3DelegateeCoordinatorService coordinatorService,
         ApplicationProperties applicationProperties,
+        Credentials credentials,
         BigInteger chainId
     ) throws IOException {
-        walletProperties = applicationProperties.getChain().getWallet();
-
-        if (walletProperties.getPrivateKey() == null || !walletProperties.getPrivateKey().startsWith("0x")) {
-            throw new IllegalArgumentException("Private key must be provided and be 0x-prefixed.");
-        }
+        this.walletProperties = applicationProperties.getChain().getWallet();
         this.coordinatorService = coordinatorService;
         this.web3j = web3j;
-        this.credentials = Credentials.create(walletProperties.getPrivateKey());
+        // Inject Credentials bean directly, removing insecure private key handling
+        this.credentials = credentials;
         this.transactionManager = new RawTransactionManager(web3j, credentials, chainId.longValue());
         this.transactionReceiptProcessor = new PollingTransactionReceiptProcessor(web3j, 1000, 15); // Poll every 1s, 15 attempts
 

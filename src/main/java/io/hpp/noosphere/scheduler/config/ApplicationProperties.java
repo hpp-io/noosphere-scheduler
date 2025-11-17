@@ -93,7 +93,22 @@ public class ApplicationProperties {
             private String privateKey;
             private String paymentAddress;
             @NotNull
+            private final Keystore keystore = new Keystore();
             private List<String> allowedSimErrors = new ArrayList<>();
+
+            @Getter
+            @Setter
+            public static class Keystore {
+                private String path;
+                private String password;
+                private final Keys keys = new Keys();
+
+                @Getter
+                @Setter
+                public static class Keys {
+                    private String eth;
+                }
+            }
         }
 
         @Setter
