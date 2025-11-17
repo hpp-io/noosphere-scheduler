@@ -1,4 +1,4 @@
-package io.hpp.noosphere.scheduler.service;
+package io.hpp.noosphere.scheduler.service.blockchain;
 
 import io.hpp.noosphere.scheduler.config.ApplicationProperties;
 import io.hpp.noosphere.scheduler.service.util.CommonUtils;

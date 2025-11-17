@@ -1,6 +1,6 @@
 package io.hpp.noosphere.scheduler.config;
 
-import io.hpp.noosphere.scheduler.service.KeystoreService;
+import io.hpp.noosphere.scheduler.service.blockchain.KeystoreService;
 import okhttp3.OkHttpClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -12,8 +12,6 @@ import org.web3j.tx.gas.DefaultGasProvider;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.concurrent.TimeUnit;
-
-import static io.hpp.noosphere.scheduler.config.Constants.KEYSTORE_TYPE;
 
 @Configuration
 public class Web3jConfig {
