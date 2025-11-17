@@ -15,5 +15,7 @@ public final class Constants {
 
     public static final String KEYSTORE_TYPE = "PKCS12";
 
+    public static final String NULL_STRING = "null";
+
     private Constants() {}
 }

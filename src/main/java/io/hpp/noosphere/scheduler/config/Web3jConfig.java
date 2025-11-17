@@ -1,21 +1,15 @@
 package io.hpp.noosphere.scheduler.config;
 
+import io.hpp.noosphere.scheduler.service.KeystoreService;
 import okhttp3.OkHttpClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.util.StringUtils;
 import org.web3j.crypto.Credentials;
-import org.web3j.crypto.ECKeyPair;
 import org.web3j.protocol.Web3j;
 import org.web3j.protocol.http.HttpService;
 import org.web3j.tx.gas.DefaultGasProvider;
 
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.security.KeyStore;
-import java.security.PrivateKey;
-import java.security.interfaces.ECPrivateKey;
 import java.math.BigInteger;
 import java.util.concurrent.TimeUnit;
 
@@ -63,41 +57,13 @@ public class Web3jConfig {
     }
 
     @Bean
-    public Credentials credentials() {
-        ApplicationProperties.Chain.Wallet.Keystore keystoreConfig = chainConfig.getWallet().getKeystore();
-        String keystorePath = keystoreConfig.getPath();
-        String storePassword = keystoreConfig.getPassword();
-        String keyAlias = keystoreConfig.getKeys().getEth();
-
-        if (!StringUtils.hasText(keystorePath) || !StringUtils.hasText(storePassword) || !StringUtils.hasText(keyAlias)) {
-            throw new IllegalStateException("Keystore path, password, or key alias is not configured properly.");
+    public Credentials credentials(KeystoreService keystoreService) {
+        String keyAlias = chainConfig.getWallet().getKeystore().getKeys().getEth();
+        if (keyAlias == null || keyAlias.isBlank()) {
+            throw new IllegalStateException("Ethereum key alias 'application.chain.wallet.keystore.keys.eth' is not configured.");
         }
-
-        try {
-            KeyStore keyStore = KeyStore.getInstance(KEYSTORE_TYPE);
-            try (InputStream keyStoreStream = new FileInputStream(keystorePath)) {
-                keyStore.load(keyStoreStream, storePassword.toCharArray());
-            }
-
-            KeyStore.ProtectionParameter protectionParameter = new KeyStore.PasswordProtection(storePassword.toCharArray());
-            KeyStore.PrivateKeyEntry privateKeyEntry = (KeyStore.PrivateKeyEntry) keyStore.getEntry(keyAlias, protectionParameter);
-
-            if (privateKeyEntry == null) {
-                throw new IllegalStateException("Private key not found in keystore for alias: " + keyAlias);
-            }
-
-            PrivateKey privateKey = privateKeyEntry.getPrivateKey();
-            if (!(privateKey instanceof ECPrivateKey)) {
-                throw new IllegalStateException("The private key in the keystore is not an EC private key.");
-            }
-
-            // Extract the BigInteger value from the ECPrivateKey.
-            BigInteger privateKeyBigInt = ((ECPrivateKey) privateKey).getS();
-            ECKeyPair ecKeyPair = ECKeyPair.create(privateKeyBigInt);
-            return Credentials.create(ecKeyPair);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to load credentials from keystore", e);
-        }
+        // Delegate credential loading to the centralized KeystoreService
+        return keystoreService.getCredentials(keyAlias);
     }
 
     @Bean
