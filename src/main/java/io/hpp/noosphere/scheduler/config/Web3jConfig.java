@@ -3,24 +3,33 @@ package io.hpp.noosphere.scheduler.config;
 import okhttp3.OkHttpClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.util.StringUtils;
 import org.web3j.crypto.Credentials;
+import org.web3j.crypto.ECKeyPair;
 import org.web3j.protocol.Web3j;
 import org.web3j.protocol.http.HttpService;
 import org.web3j.tx.gas.DefaultGasProvider;
 
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.security.KeyStore;
+import java.security.PrivateKey;
+import java.security.interfaces.ECPrivateKey;
 import java.math.BigInteger;
 import java.util.concurrent.TimeUnit;
+
+import static io.hpp.noosphere.scheduler.config.Constants.KEYSTORE_TYPE;
 
 @Configuration
 public class Web3jConfig {
 
     private final ApplicationProperties.Chain chainConfig;
 
-    // 기본 timeout 값들 정의
-    private static final int DEFAULT_CONNECT_TIMEOUT = 30000; // 30초
-    private static final int DEFAULT_READ_TIMEOUT = 30000; // 30초
-    private static final int DEFAULT_WRITE_TIMEOUT = 30000; // 30초
+    // Default timeout values
+    private static final int DEFAULT_CONNECT_TIMEOUT = 30000; // 30 seconds
+    private static final int DEFAULT_READ_TIMEOUT = 30000; // 30 seconds
+    private static final int DEFAULT_WRITE_TIMEOUT = 30000; // 30 seconds
 
     public Web3jConfig(ApplicationProperties applicationProperties) {
         this.chainConfig = applicationProperties.getChain();
@@ -30,7 +39,7 @@ public class Web3jConfig {
     public Web3j web3j() {
         String rpcUrl = chainConfig.getRpcUrl();
 
-        // null-safe한 방식으로 timeout 값들 가져오기
+        // Get timeout values in a null-safe way
         ApplicationProperties.Chain.Connection connection = chainConfig.getConnection();
 
         int connectTimeout = getTimeoutValue(connection != null ? connection.getTimeout() : null, DEFAULT_CONNECT_TIMEOUT);
@@ -47,7 +56,7 @@ public class Web3jConfig {
     }
 
     /**
-     * timeout 값이 null인 경우 기본값을 반환하는 헬퍼 메서드
+     * Helper method to return a default value if the timeout is null.
      */
     private int getTimeoutValue(Integer timeout, int defaultValue) {
         return timeout != null ? timeout : defaultValue;
@@ -55,7 +64,40 @@ public class Web3jConfig {
 
     @Bean
     public Credentials credentials() {
-        return Credentials.create(chainConfig.getWallet().getPrivateKey());
+        ApplicationProperties.Chain.Wallet.Keystore keystoreConfig = chainConfig.getWallet().getKeystore();
+        String keystorePath = keystoreConfig.getPath();
+        String storePassword = keystoreConfig.getPassword();
+        String keyAlias = keystoreConfig.getKeys().getEth();
+
+        if (!StringUtils.hasText(keystorePath) || !StringUtils.hasText(storePassword) || !StringUtils.hasText(keyAlias)) {
+            throw new IllegalStateException("Keystore path, password, or key alias is not configured properly.");
+        }
+
+        try {
+            KeyStore keyStore = KeyStore.getInstance(KEYSTORE_TYPE);
+            try (InputStream keyStoreStream = new FileInputStream(keystorePath)) {
+                keyStore.load(keyStoreStream, storePassword.toCharArray());
+            }
+
+            KeyStore.ProtectionParameter protectionParameter = new KeyStore.PasswordProtection(storePassword.toCharArray());
+            KeyStore.PrivateKeyEntry privateKeyEntry = (KeyStore.PrivateKeyEntry) keyStore.getEntry(keyAlias, protectionParameter);
+
+            if (privateKeyEntry == null) {
+                throw new IllegalStateException("Private key not found in keystore for alias: " + keyAlias);
+            }
+
+            PrivateKey privateKey = privateKeyEntry.getPrivateKey();
+            if (!(privateKey instanceof ECPrivateKey)) {
+                throw new IllegalStateException("The private key in the keystore is not an EC private key.");
+            }
+
+            // Extract the BigInteger value from the ECPrivateKey.
+            BigInteger privateKeyBigInt = ((ECPrivateKey) privateKey).getS();
+            ECKeyPair ecKeyPair = ECKeyPair.create(privateKeyBigInt);
+            return Credentials.create(ecKeyPair);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to load credentials from keystore", e);
+        }
     }
 
     @Bean

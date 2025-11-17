@@ -13,5 +13,7 @@ public final class Constants {
 
     public static final String ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
+    public static final String KEYSTORE_TYPE = "PKCS12";
+
     private Constants() {}
 }
