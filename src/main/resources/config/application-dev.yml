@@ -76,7 +76,7 @@ spring:
     cache: false
 
 server:
-  port: 8081
+  port: 8185
   # make sure requests the proxy uri instead of the server one
   forward-headers-strategy: native
 
@@ -114,12 +114,11 @@ application:
       cron: '0 */1 * * * ?'
   chain:
     enabled: true
-    rpcUrl: 'http://localhost:8545'
+    rpcUrl: '${HPP_RPC_URL:}'
     trailHeadBlocks: 10
-    routerAddress: '${REGISTRY_ADDRESS:}'
+    routerAddress: '${HPP_ROUTER_ADDRESS:}'
     wallet:
       maxGasLimit: 1000000
-      privateKey: '${WALLET_PRIVATE_KEY:}'
       paymentAddress: '${PAYMENT_ADDRESS:}'
       allowedSimErrors:
         - 'execution reverted'

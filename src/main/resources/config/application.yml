@@ -115,7 +115,7 @@ spring:
     group:
       dev:
         - dev
-        - api-docs
+#        - api-docs
         # Uncomment to activate TLS for the dev profile
         #- tls
   jmx:
@@ -212,4 +212,36 @@ jhipster:
 # https://www.jhipster.tech/common-application-properties/
 # ===================================================================
 
-# application:
+application:
+  scheduleTask:
+    commitment-generation:
+      enabled: true
+      cron: '0 */1 * * * ?'
+  chain:
+    enabled: true
+    rpcUrl: '${HPP_RPC_ADDRESS:}'
+    trailHeadBlocks: 0
+    routerAddress: '${HPP_ROUTER_ADDRESS:}'
+    wallet:
+      maxGasLimit: 1000000
+      paymentAddress: '${PAYMENT_ADDRESS:}'
+      allowedSimErrors:
+        - 'execution reverted'
+        - 'out of gas'
+      keystore:
+        path: '${HPP_KEYSTORE_PATH}'
+        password: '${HPP_KEYSTORE_PASSWORD}'
+        keys:
+          eth: '${HPP_ETH_KEY_ALIAS}'
+    snapshotSync:
+      sleep: 1
+      batchSize: 100
+      startingSubId: 0
+      syncPeriod: 3000
+    connection:
+      timeout: 30000
+      readTimeout: 60000
+      writeTimeout: 60000
+    gasConfig:
+      priceMultiplier: 1.2
+      limitMultiplier: 1.3

@@ -5,12 +5,17 @@ services:
     image: noospherescheduler
     environment:
       - _JAVA_OPTIONS=-Xmx512m -Xms256m
-      - SPRING_PROFILES_ACTIVE=prod,api-docs
+      - SPRING_PROFILES_ACTIVE=prod
       - MANAGEMENT_PROMETHEUS_METRICS_EXPORT_ENABLED=true
       - SPRING_CLOUD_CONSUL_HOST=consul
       - SPRING_CLOUD_CONSUL_PORT=8500
       - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/noospherescheduler?useUnicode=true&characterEncoding=utf8&useSSL=false&useLegacyDatetimeCode=false&createDatabaseIfNotExist=true
       - SPRING_LIQUIBASE_URL=jdbc:mysql://mysql:3306/noospherescheduler?useUnicode=true&characterEncoding=utf8&useSSL=false&useLegacyDatetimeCode=false&createDatabaseIfNotExist=true
+    volumes:
+      - /data/noosphere/config/hpp-keystore.p12:/app/hpp-keystore.p12
+      - /data/noosphere/logs/scheduler-logs:/app/logs
+    ports:
+      - 8185:8185
     healthcheck:
       test:
         - CMD
@@ -23,17 +28,7 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
-      keycloak:
-        condition: service_healthy
   mysql:
     extends:
       file: ./mysql.yml
       service: mysql
-  consul:
-    extends:
-      file: ./consul.yml
-      service: consul
-  consul-config-loader:
-    extends:
-      file: ./consul.yml
-      service: consul-config-loader

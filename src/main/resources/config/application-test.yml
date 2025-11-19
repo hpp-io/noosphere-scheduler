@@ -1,5 +1,5 @@
 # ===================================================================
-# Spring Boot configuration for the "prod" profile.
+# Spring Boot configuration for the "dev" profile.
 #
 # This configuration overrides the application.yml file.
 #
@@ -15,15 +15,12 @@
 
 logging:
   level:
-    ROOT: INFO
-    tech.jhipster: INFO
-    io.hpp.noosphere.scheduler: INFO
+    ROOT: DEBUG
+    tech.jhipster: DEBUG
+    org.hibernate.SQL: DEBUG
+    io.hpp.noosphere.scheduler: DEBUG
 
 management:
-  prometheus:
-    metrics:
-      export:
-        enabled: false
   zipkin: # Use the "zipkin" Maven profile to have the Spring Cloud Zipkin dependencies
     tracing:
       endpoint: http://localhost:9411/api/v2/spans
@@ -34,13 +31,27 @@ management:
 spring:
   devtools:
     restart:
-      enabled: false
+      enabled: true
+      additional-exclude: static/**
     livereload:
-      enabled: false
+      enabled: false # we use Webpack dev server + BrowserSync for livereload
+  jackson:
+    serialization:
+      indent-output: true
   cloud:
     consul:
+      config:
+        fail-fast: false # if not in "prod" profile, do not force to use Spring Cloud Config
+        format: yaml
+        profile-separator: '-'
       discovery:
         prefer-ip-address: true
+        tags:
+          - profile=${spring.profiles.active}
+          - version='@project.version@'
+          - git-version=${git.commit.id.describe:}
+          - git-commit=${git.commit.id.abbrev:}
+          - git-branch=${git.branch:}
       host: localhost
       port: 8500
   datasource:
@@ -56,38 +67,18 @@ spring:
         prepStmtCacheSize: 250
         prepStmtCacheSqlLimit: 2048
         useServerPrepStmts: true
-  # Replace by 'prod, faker' to add the faker context and have sample data loaded in production
   liquibase:
-    contexts: prod
+    # Remove 'faker' if you do not want the sample data to be loaded automatically
+    contexts: test
+  messages:
+    cache-duration: PT1S # 1 second, see the ISO 8601 standard
   thymeleaf:
-    cache: true
+    cache: false
 
-# ===================================================================
-# To enable TLS in production, generate a certificate using:
-# keytool -genkey -alias noospherescheduler -storetype PKCS12 -keyalg RSA -keysize 2048 -keystore keystore.p12 -validity 3650
-#
-# You can also use Let's Encrypt:
-# See details in topic "Create a Java Keystore (.JKS) from Let's Encrypt Certificates" on https://maximilian-boehm.com/en-gb/blog
-#
-# Then, modify the server.ssl properties so your "server" configuration looks like:
-#
-# server:
-#   port: 443
-#   ssl:
-#     key-store: classpath:config/tls/keystore.p12
-#     key-store-password: password
-#     key-store-type: PKCS12
-#     key-alias: selfsigned
-#     # The ciphers suite enforce the security by deactivating some old and deprecated SSL cipher, this list was tested against SSL Labs (https://www.ssllabs.com/ssltest/)
-#     ciphers: TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384 ,TLS_DHE_RSA_WITH_AES_128_GCM_SHA256 ,TLS_DHE_RSA_WITH_AES_256_GCM_SHA384 ,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,TLS_DHE_RSA_WITH_AES_128_CBC_SHA256,TLS_DHE_RSA_WITH_AES_128_CBC_SHA,TLS_DHE_RSA_WITH_AES_256_CBC_SHA256,TLS_DHE_RSA_WITH_AES_256_CBC_SHA,TLS_RSA_WITH_AES_128_GCM_SHA256,TLS_RSA_WITH_AES_256_GCM_SHA384,TLS_RSA_WITH_AES_128_CBC_SHA256,TLS_RSA_WITH_AES_256_CBC_SHA256,TLS_RSA_WITH_AES_128_CBC_SHA,TLS_RSA_WITH_AES_256_CBC_SHA,TLS_DHE_RSA_WITH_CAMELLIA_256_CBC_SHA,TLS_RSA_WITH_CAMELLIA_256_CBC_SHA,TLS_DHE_RSA_WITH_CAMELLIA_128_CBC_SHA,TLS_RSA_WITH_CAMELLIA_128_CBC_SHA
-# ===================================================================
 server:
   port: 8185
-  shutdown: graceful # see https://docs.spring.io/spring-boot/docs/current/reference/html/spring-boot-features.html#boot-features-graceful-shutdown
-  compression:
-    enabled: true
-    mime-types: text/html,text/xml,text/plain,text/css,application/javascript,application/json,image/svg+xml
-    min-response-size: 1024
+  # make sure requests the proxy uri instead of the server one
+  forward-headers-strategy: native
 
 # ===================================================================
 # JHipster specific properties
@@ -96,9 +87,6 @@ server:
 # ===================================================================
 
 jhipster:
-  http:
-    cache: # Used by the CachingHttpHeadersFilter
-      timeToLiveInDays: 1461
   cache: # Cache configuration
     hazelcast: # Hazelcast distributed cache
       time-to-live-seconds: 3600
@@ -118,16 +106,16 @@ jhipster:
 # More documentation is available at:
 # https://www.jhipster.tech/common-application-properties/
 # ===================================================================
-
 application:
   scheduleTask:
     commitment-generation:
       enabled: true
+      # 매 5분마다 실행 (Cron 표현식)
       cron: '0 */1 * * * ?'
   chain:
     enabled: true
     rpcUrl: '${HPP_RPC_URL:}'
-    trailHeadBlocks: 0
+    trailHeadBlocks: 10
     routerAddress: '${HPP_ROUTER_ADDRESS:}'
     wallet:
       maxGasLimit: 1000000
