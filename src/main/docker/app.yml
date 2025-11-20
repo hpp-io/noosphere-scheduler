@@ -1,11 +1,5 @@
 # This configuration is intended for development purpose, it's **your** responsibility to harden it for production
 name: noosphere-scheduler
-networks:
-  ns-network:
-    ipam:
-      driver: default
-      config:
-        - subnet: 172.18.0.0/24
 services:
   noosphere-scheduler:
     image: ghcr.io/hpp-io/noosphere-scheduler:test
@@ -14,10 +8,11 @@ services:
       - _JAVA_OPTIONS=-Xmx512m -Xms256m
       - SPRING_PROFILES_ACTIVE=test
       - MANAGEMENT_PROMETHEUS_METRICS_EXPORT_ENABLED=true
-      - SPRING_CLOUD_CONSUL_HOST=consul
+      - SPRING_CLOUD_CONSUL_HOST=noosphere-consul
       - SPRING_CLOUD_CONSUL_PORT=8500
       - SPRING_DATASOURCE_URL=jdbc:mysql://noosphere-mysql:3306/scheduler?useUnicode=true&characterEncoding=utf8&useSSL=false&useLegacyDatetimeCode=false&createDatabaseIfNotExist=true
       - SPRING_LIQUIBASE_URL=jdbc:mysql://noosphere-mysql:3306/scheduler?useUnicode=true&characterEncoding=utf8&useSSL=false&useLegacyDatetimeCode=false&createDatabaseIfNotExist=true
+      - LOGGING_FILE_PATH=/app/logs
     volumes:
       - /data/noosphere/config/hpp-keystore.p12:/app/hpp-keystore.p12
       - /data/noosphere/logs/scheduler-logs:/app/logs
@@ -32,3 +27,5 @@ services:
       interval: 5s
       timeout: 5s
       retries: 40
+    networks:
+      - ns-network
