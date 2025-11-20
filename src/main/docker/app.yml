@@ -2,7 +2,7 @@
 name: noosphere-scheduler
 services:
   noosphere-scheduler:
-    image: noosphere-scheduler:test
+    image: ghcr.io/hpp-io/noosphere-scheduler:test
     container_name: noosphere-scheduler
     environment:
       - _JAVA_OPTIONS=-Xmx512m -Xms256m
