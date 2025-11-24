@@ -378,7 +378,7 @@ tasks.register('listFoundryContracts') {
   group = 'web3j'
 
   doLast {
-    def foundryOutDir = file("./noosphere-evm/out")
+    def foundryOutDir = file("../noosphere-evm/out")
 
     if (!foundryOutDir.exists()) {
       println "Foundry output directory not found. Run 'forge build' first."
