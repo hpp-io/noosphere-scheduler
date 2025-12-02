@@ -49,8 +49,11 @@
     "default_environment": "prod",
     "packaging": "jar"
   },
+  "overrides": {
+    "glob": "^11.0.4"
+  },
   "devDependencies": {
-    "generator-jhipster": "8.11.0",
+    "generator-jhipster": "^8.7.3",
     "husky": "9.1.7",
     "lint-staged": "15.5.2",
     "prettier": "3.5.3",
