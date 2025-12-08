@@ -265,8 +265,25 @@ public class Web3RouterService {
                         encodedFunction
                     );
 
-                String result = web3j.ethCall(transaction, blockParameter).send().getValue();
-                BigInteger lastId = (BigInteger) FunctionReturnDecoder.decode(result, function.getOutputParameters()).get(0).getValue();
+                org.web3j.protocol.core.methods.response.EthCall response = web3j.ethCall(transaction, blockParameter).send();
+
+                if (response.hasError()) {
+                    throw new java.io.IOException("eth_call to getLastSubscriptionId failed: " + response.getError().getMessage());
+                }
+
+                String result = response.getValue();
+                if (result == null || result.equals("0x")) {
+                    log.warn("getLastSubscriptionId returned no data, assuming 0.");
+                    return BigInteger.ZERO; // No subscriptions exist yet.
+                }
+
+                java.util.List<org.web3j.abi.datatypes.Type> decoded = FunctionReturnDecoder.decode(result, function.getOutputParameters());
+                if (decoded.isEmpty()) {
+                    log.warn("Decoded result for getLastSubscriptionId is empty, assuming 0.");
+                    return BigInteger.ZERO;
+                }
+
+                BigInteger lastId = (BigInteger) decoded.get(0).getValue();
 
                 log.info("Retrieved highest subscription ID: {}) at block {}", lastId, blockNumber != null ? blockNumber : "latest");
                 return lastId;
