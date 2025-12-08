@@ -102,8 +102,9 @@ public class BlockchainListener implements ApplicationListener<ApplicationReadyE
             if (currentLastBlock < headBlock) {
                 long targetBlock = Math.min(headBlock, currentLastBlock + 100); // Sync max 100 blocks
                 log.info("New blocks detected. Syncing from {} to {}", currentLastBlock + 1, targetBlock);
-
-                snapshotSync(targetBlock).join(); // Wait for sync to complete
+                isSnapshotSyncing.set(true);
+                snapshotSync(targetBlock).join();
+                isSnapshotSyncing.set(false); // Wait for sync to complete
 
                 lastSyncedBlock.set(targetBlock);
                 long newHeadSubId = web3Router.getLastSubscriptionId(headBlock).join().longValue(); // This now returns the highest ID directly

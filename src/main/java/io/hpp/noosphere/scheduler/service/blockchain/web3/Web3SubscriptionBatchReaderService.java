@@ -1,8 +1,17 @@
 package io.hpp.noosphere.scheduler.service.blockchain.web3;
 
+import static io.hpp.noosphere.scheduler.config.Constants.ZERO_ADDRESS;
+
 import io.hpp.noosphere.scheduler.config.Web3jConfig;
 import io.hpp.noosphere.scheduler.contracts.SubscriptionBatchReader;
 import jakarta.annotation.PostConstruct;
+import java.io.IOException;
+import java.math.BigInteger;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -15,15 +24,6 @@ import org.web3j.abi.datatypes.generated.Uint64;
 import org.web3j.crypto.Credentials;
 import org.web3j.protocol.Web3j;
 import org.web3j.protocol.core.DefaultBlockParameter;
-
-import java.math.BigInteger;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
-
-import static io.hpp.noosphere.scheduler.config.Constants.ZERO_ADDRESS;
 
 @Service
 public class Web3SubscriptionBatchReaderService {
@@ -96,11 +96,23 @@ public class Web3SubscriptionBatchReaderService {
                                 encodedFunction
                             );
 
-                        String result = web3j.ethCall(transaction, blockParam).send().getValue();
-                        List<SubscriptionBatchReader.ComputeSubscription> subscriptions = (List<
-                                SubscriptionBatchReader.ComputeSubscription
-                            >) FunctionReturnDecoder.decode(result, function.getOutputParameters()).get(0).getValue();
-                        return subscriptions;
+                        org.web3j.protocol.core.methods.response.EthCall response = web3j.ethCall(transaction, blockParam).send();
+
+                        if (response.hasError()) {
+                            throw new IOException("eth_call to getSubscriptions failed: " + response.getError().getMessage());
+                        }
+
+                        String result = response.getValue();
+                        if (result == null || result.equals("0x")) {
+                            return Collections.emptyList(); // 계약이 데이터를 반환하지 않으면 빈 리스트를 반환
+                        }
+
+                        List<org.web3j.abi.datatypes.Type> decoded = FunctionReturnDecoder.decode(result, function.getOutputParameters());
+                        if (decoded.isEmpty()) {
+                            return Collections.emptyList();
+                        }
+
+                        return (List<SubscriptionBatchReader.ComputeSubscription>) decoded.get(0).getValue();
                     } catch (Exception e) {
                         log.error("Failed to get subscriptions for batch [{}-{}]", startId, endId, e);
                         throw new RuntimeException("Failed to get subscriptions", e);
@@ -149,11 +161,22 @@ public class Web3SubscriptionBatchReaderService {
                                 encodedFunction
                             );
 
-                        String result = web3j.ethCall(transaction, blockParam).send().getValue();
-                        List<SubscriptionBatchReader.IntervalStatus> statuses = (List<
-                                SubscriptionBatchReader.IntervalStatus
-                            >) FunctionReturnDecoder.decode(result, function.getOutputParameters()).get(0).getValue();
-                        return statuses;
+                        org.web3j.protocol.core.methods.response.EthCall response = web3j.ethCall(transaction, blockParam).send();
+
+                        if (response.hasError()) {
+                            throw new IOException("eth_call to getIntervalStatuses failed: " + response.getError().getMessage());
+                        }
+
+                        String result = response.getValue();
+                        if (result == null || result.equals("0x")) {
+                            return Collections.emptyList(); // 계약이 데이터를 반환하지 않으면 빈 리스트를 반환
+                        }
+
+                        List<org.web3j.abi.datatypes.Type> decoded = FunctionReturnDecoder.decode(result, function.getOutputParameters());
+                        if (decoded.isEmpty()) {
+                            return Collections.emptyList();
+                        }
+                        return (List<SubscriptionBatchReader.IntervalStatus>) decoded.get(0).getValue();
                     } catch (Exception e) {
                         log.error("Failed to get interval statuses", e);
                         throw new RuntimeException("Failed to get interval statuses", e);
