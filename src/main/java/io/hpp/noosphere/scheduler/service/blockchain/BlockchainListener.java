@@ -7,6 +7,15 @@ import io.hpp.noosphere.scheduler.service.blockchain.web3.Web3RouterService;
 import io.hpp.noosphere.scheduler.service.blockchain.web3.Web3SubscriptionBatchReaderService;
 import io.hpp.noosphere.scheduler.service.dto.OnchainRequestDTO;
 import io.hpp.noosphere.scheduler.service.dto.SubscriptionDTO;
+import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -16,15 +25,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.util.Assert;
 import org.web3j.protocol.Web3j;
-
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 public class BlockchainListener implements ApplicationListener<ApplicationReadyEvent> {
@@ -49,7 +49,7 @@ public class BlockchainListener implements ApplicationListener<ApplicationReadyE
         RequestValidatorService requestValidatorService,
         BlockChainService blockChainService,
         ApplicationProperties applicationProperties
-        ) {
+    ) {
         this.web3j = web3j;
         this.web3Router = web3Router;
         this.web3BatchReader = web3BatchReader;
@@ -133,7 +133,11 @@ public class BlockchainListener implements ApplicationListener<ApplicationReadyE
                     return;
                 }
 
-                List<int[]> batches = getBatches((int) startId, (int) headSubId, chainProperties.getSnapshotSync().getBatchSize().intValue());
+                List<int[]> batches = getBatches(
+                    (int) startId,
+                    (int) headSubId,
+                    chainProperties.getSnapshotSync().getBatchSize().intValue()
+                );
                 log.info("Syncing new subscriptions in {} batches.", batches.size());
 
                 List<CompletableFuture<Void>> futures = new ArrayList<>();
@@ -218,6 +222,13 @@ public class BlockchainListener implements ApplicationListener<ApplicationReadyE
             // Convert contract DTOs to internal Subscription objects
             List<SubscriptionDTO> subscriptions = new ArrayList<>();
             for (int i = 0; i < contractSubscriptions.size(); i++) {
+                if (
+                    contractSubscriptions.get(i) == null ||
+                    contractSubscriptions.get(i).intervalSeconds == null ||
+                    contractSubscriptions.get(i).intervalSeconds.equals(BigInteger.ZERO)
+                ) {
+                    continue;
+                }
                 long currentId = (long) startId + i;
                 subscriptions.add(
                     SubscriptionDTO.builder()

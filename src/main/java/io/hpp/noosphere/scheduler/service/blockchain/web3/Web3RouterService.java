@@ -1,11 +1,19 @@
 package io.hpp.noosphere.scheduler.service.blockchain.web3;
 
+import static io.hpp.noosphere.scheduler.config.Constants.ZERO_ADDRESS;
+
 import io.hpp.noosphere.scheduler.config.ApplicationProperties;
 import io.hpp.noosphere.scheduler.config.Web3jConfig;
 import io.hpp.noosphere.scheduler.contracts.Router;
 import io.hpp.noosphere.scheduler.service.blockchain.dto.SignatureParamsDTO;
 import io.hpp.noosphere.scheduler.service.dto.SubscriptionDTO;
 import jakarta.annotation.PostConstruct;
+import java.math.BigInteger;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -20,15 +28,6 @@ import org.web3j.crypto.Credentials;
 import org.web3j.crypto.Hash;
 import org.web3j.protocol.Web3j;
 import org.web3j.protocol.core.DefaultBlockParameter;
-
-import java.math.BigInteger;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-
-import static io.hpp.noosphere.scheduler.config.Constants.ZERO_ADDRESS;
 
 @Service
 public class Web3RouterService {
@@ -269,17 +268,8 @@ public class Web3RouterService {
                 String result = web3j.ethCall(transaction, blockParameter).send().getValue();
                 BigInteger lastId = (BigInteger) FunctionReturnDecoder.decode(result, function.getOutputParameters()).get(0).getValue();
 
-                // The contract returns the total count, so the highest ID is count - 1.
-                // If count is 0, there are no subscriptions, so we return 0.
-                BigInteger highestId = lastId.equals(BigInteger.ZERO) ? BigInteger.ZERO : lastId.subtract(BigInteger.ONE);
-
-                log.info(
-                    "Retrieved highest subscription ID: {} (from count: {}) at block {}",
-                    highestId,
-                    lastId,
-                    blockNumber != null ? blockNumber : "latest"
-                );
-                return highestId;
+                log.info("Retrieved highest subscription ID: {}) at block {}", lastId, blockNumber != null ? blockNumber : "latest");
+                return lastId;
             } catch (Exception e) {
                 log.error("Failed to get last subscription ID", e);
                 throw new RuntimeException("Failed to get last subscription ID", e);
