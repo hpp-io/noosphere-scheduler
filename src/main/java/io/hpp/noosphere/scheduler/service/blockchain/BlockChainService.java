@@ -1,23 +1,22 @@
 package io.hpp.noosphere.scheduler.service.blockchain;
 
-import io.hpp.noosphere.scheduler.service.blockchain.dto.*;
+import io.hpp.noosphere.scheduler.service.blockchain.dto.OnchainSubscriptionId;
+import io.hpp.noosphere.scheduler.service.blockchain.dto.SubscriptionIdentifier;
+import io.hpp.noosphere.scheduler.service.blockchain.dto.SubscriptionRunKey;
 import io.hpp.noosphere.scheduler.service.blockchain.web3.Web3DelegatorService;
-import io.hpp.noosphere.scheduler.service.dto.*;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.scheduling.annotation.Async;
-import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Service;
-import org.web3j.protocol.Web3j;
-
-import java.io.IOException;
+import io.hpp.noosphere.scheduler.service.dto.BaseRequestDTO;
+import io.hpp.noosphere.scheduler.service.dto.OnchainRequestDTO;
+import io.hpp.noosphere.scheduler.service.dto.SubscriptionDTO;
 import java.math.BigInteger;
-import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.stereotype.Service;
+import org.web3j.protocol.Web3j;
 
 @Service
 public class BlockChainService {
@@ -50,7 +49,7 @@ public class BlockChainService {
     @Async
     public CompletableFuture<Void> processIncomingRequest(BaseRequestDTO request) {
         if (request instanceof OnchainRequestDTO onchainRequestDTO) {
-            ProcessOnchainRequest(onchainRequestDTO);
+            processOnchainRequest(onchainRequestDTO);
             return CompletableFuture.completedFuture(null);
         } else {
             log.error("Unknown request type to track: {}", request);
@@ -58,7 +57,7 @@ public class BlockChainService {
         }
     }
 
-    private void ProcessOnchainRequest(OnchainRequestDTO requestDTO) {
+    private void processOnchainRequest(OnchainRequestDTO requestDTO) {
         subscriptions.put(requestDTO.getSubscription().getId(), requestDTO.getSubscription());
         log.info("Tracked new subscription! id={}, total={}", requestDTO.getSubscription().getId(), subscriptions.size());
     }
@@ -76,12 +75,10 @@ public class BlockChainService {
         });
     }
 
-    private CompletableFuture<ShouldProcessResult> shouldProcess(
-        SubscriptionIdentifier subId,
-        SubscriptionDTO subscription
-    ) {
+    private CompletableFuture<ShouldProcessResult> shouldProcess(SubscriptionIdentifier subId, SubscriptionDTO subscription) {
         if (subscription.isCallback()) {
             stopTracking(subId);
+            return CompletableFuture.completedFuture(new ShouldProcessResult(false, null));
         }
         if (!subscription.isActive()) {
             return CompletableFuture.completedFuture(new ShouldProcessResult(false, null));
@@ -103,13 +100,13 @@ public class BlockChainService {
             .hasRequestCommitments(BigInteger.valueOf(subscription.getId()), BigInteger.valueOf(interval))
             .thenCompose(hasCommitment -> {
                 if (hasCommitment) {
-                    return coordinator.getCommitment(subscription.getId(), interval)
+                    return coordinator
+                        .getCommitment(subscription.getId(), interval)
                         .thenApply(commitment -> new ShouldProcessResult(false, coordinator.encodeCommitment(commitment)));
                 } else {
                     return CompletableFuture.completedFuture(new ShouldProcessResult(true, null));
                 }
             });
-
     }
 
     @Async
@@ -120,15 +117,17 @@ public class BlockChainService {
                     .getTxSuccess(txHash)
                     .thenAccept(txReceipt -> {
                         if (txReceipt != null && !txReceipt.success()) {
-                            synchronized (this) {
-                                int attempts = txAttempts.computeIfAbsent(runKey, k -> new AtomicInteger(0)).incrementAndGet();
-                                if (attempts < 3) {
-                                    pendingTxs.remove(runKey);
-                                    log.info("Evicted failed tx for {}, retries: {}", runKey, attempts);
+                            // compute를 사용하여 runKey에 대한 작업을 원자적으로 처리합니다.
+                            txAttempts.compute(runKey, (k, attempts) -> {
+                                int currentAttempts = (attempts == null) ? 1 : attempts.incrementAndGet();
+                                log.info("Failed tx detected for {}. Attempt #{}", runKey, currentAttempts);
+                                if (currentAttempts < 3) {
+                                    pendingTxs.remove(runKey); // 재시도를 위해 블록을 해제합니다.
                                 } else {
-                                    log.error("Max retries reached for {}. It will be blocked.", runKey);
+                                    log.error("Max retries reached for {}. It will remain blocked.", runKey);
                                 }
-                            }
+                                return attempts == null ? new AtomicInteger(1) : attempts;
+                            });
                         }
                     });
             }
@@ -145,10 +144,7 @@ public class BlockChainService {
     }
 
     @Async
-    public void generatedCommitment(
-        SubscriptionIdentifier id,
-        SubscriptionDTO subscription
-    ) {
+    public void generatedCommitment(SubscriptionIdentifier id, SubscriptionDTO subscription) {
         long interval = subscription.getInterval();
         SubscriptionRunKey runKey = new SubscriptionRunKey(id, interval);
 
@@ -161,11 +157,21 @@ public class BlockChainService {
             .prepareNextInterval(BigInteger.valueOf(subscription.getId()), BigInteger.valueOf(interval), wallet.getAddress())
             .thenAccept(receipt -> {
                 if (receipt.isStatusOK()) {
-                    log.info("Successfully prepared next interval for sub {}, interval {}. Tx: {}", id, interval, receipt.getTransactionHash());
+                    log.info(
+                        "Successfully prepared next interval for sub {}, interval {}. Tx: {}",
+                        id,
+                        interval,
+                        receipt.getTransactionHash()
+                    );
                     // Update with the txHash once the transaction is successfully mined.
                     pendingTxs.put(runKey, receipt.getTransactionHash());
                 } else {
-                    log.error("Failed to prepare next interval for sub {}, interval {}. Tx: {}", id, interval, receipt.getTransactionHash());
+                    log.error(
+                        "Failed to prepare next interval for sub {}, interval {}. Tx: {}",
+                        id,
+                        interval,
+                        receipt.getTransactionHash()
+                    );
                     // Remove 'BLOCKED_TX' on failure to allow for a retry.
                     pendingTxs.remove(runKey);
                 }
@@ -177,5 +183,4 @@ public class BlockChainService {
                 return null;
             });
     }
-
 }

@@ -10,6 +10,13 @@ import io.hpp.noosphere.scheduler.service.blockchain.web3.Web3DelegateeCoordinat
 import io.hpp.noosphere.scheduler.service.blockchain.web3.Web3DelegatorService;
 import io.hpp.noosphere.scheduler.service.blockchain.web3.Web3RouterService;
 import io.hpp.noosphere.scheduler.service.dto.SubscriptionDTO;
+import java.math.BigInteger;
+import java.nio.ByteBuffer;
+import java.security.SignatureException;
+import java.time.Instant;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.concurrent.CompletableFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.Cacheable;
@@ -26,14 +33,6 @@ import org.web3j.protocol.Web3j;
 import org.web3j.protocol.core.methods.response.TransactionReceipt;
 import org.web3j.utils.Numeric;
 
-import java.math.BigInteger;
-import java.nio.ByteBuffer;
-import java.security.SignatureException;
-import java.time.Instant;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.concurrent.CompletableFuture;
-
 @Service
 public class CoordinatorService {
 
@@ -43,6 +42,7 @@ public class CoordinatorService {
     private final Web3DelegatorService web3DelegatorService;
     private final Web3DelegateeCoordinatorService web3DelegateeCoordinatorService;
     private final Web3ClientService web3ClientService;
+    private final WalletService walletService;
     private final Web3j web3j;
 
     public CoordinatorService(
@@ -50,12 +50,14 @@ public class CoordinatorService {
         Web3DelegatorService web3DelegatorService,
         Web3DelegateeCoordinatorService web3DelegateeCoordinatorService,
         Web3ClientService web3ClientService,
+        WalletService walletService,
         Web3j web3j
     ) {
         this.web3RouterService = web3RouterService;
         this.web3DelegatorService = web3DelegatorService;
         this.web3DelegateeCoordinatorService = web3DelegateeCoordinatorService;
         this.web3ClientService = web3ClientService;
+        this.walletService = walletService;
         this.web3j = web3j;
     }
 
@@ -331,12 +333,14 @@ public class CoordinatorService {
      * @return A CompletableFuture containing the transaction receipt of the operation.
      */
     public CompletableFuture<TransactionReceipt> prepareNextInterval(
-            BigInteger subscriptionId,
-            BigInteger nextInterval,
-            String nodeWallet
+        BigInteger subscriptionId,
+        BigInteger nextInterval,
+        String nodeWallet
     ) {
         log.debug("Preparing next interval {} for subscription {} with node wallet {}", nextInterval, subscriptionId, nodeWallet);
-        return web3DelegateeCoordinatorService.prepareNextInterval(subscriptionId, nextInterval, nodeWallet);
+        String encodedFunction = web3DelegateeCoordinatorService.encodePrepareNextInterval(subscriptionId, nextInterval, nodeWallet);
+        return walletService
+            .sendTransaction(encodedFunction, null) // Let web3j estimate gas
+            .thenCompose(walletService::waitForReceipt);
     }
-
 }

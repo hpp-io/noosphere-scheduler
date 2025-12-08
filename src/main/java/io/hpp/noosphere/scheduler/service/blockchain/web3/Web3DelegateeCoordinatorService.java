@@ -1,11 +1,17 @@
 package io.hpp.noosphere.scheduler.service.blockchain.web3;
 
+import static io.hpp.noosphere.scheduler.config.Constants.ZERO_ADDRESS;
+
 import io.hpp.noosphere.scheduler.config.Web3jConfig;
 import io.hpp.noosphere.scheduler.contracts.DelegateeCoordinator;
 import io.hpp.noosphere.scheduler.contracts.Router;
 import io.hpp.noosphere.scheduler.service.blockchain.dto.SignatureParamsDTO;
 import io.hpp.noosphere.scheduler.service.dto.SubscriptionDTO;
 import jakarta.annotation.PostConstruct;
+import java.math.BigInteger;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.concurrent.CompletableFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -21,14 +27,6 @@ import org.web3j.protocol.Web3j;
 import org.web3j.protocol.core.DefaultBlockParameter;
 import org.web3j.protocol.core.methods.response.TransactionReceipt;
 import org.web3j.tuples.generated.Tuple8;
-
-import java.math.BigInteger;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.concurrent.CompletableFuture;
-
-import static io.hpp.noosphere.scheduler.config.Constants.ZERO_ADDRESS;
-
 
 @Service
 public class Web3DelegateeCoordinatorService {
@@ -138,6 +136,14 @@ public class Web3DelegateeCoordinatorService {
         String nodeWallet
     ) {
         return checkContractLoaded().thenCompose(c -> c.prepareNextInterval(subscriptionId, nextInterval, nodeWallet).sendAsync());
+    }
+
+    /**
+     * Encodes the transaction data for a prepareNextInterval call.
+     * @return The encoded function call as a hex string.
+     */
+    public String encodePrepareNextInterval(BigInteger subscriptionId, BigInteger nextInterval, String nodeWallet) {
+        return checkContractLoaded().join().prepareNextInterval(subscriptionId, nextInterval, nodeWallet).encodeFunctionCall();
     }
 
     public CompletableFuture<TransactionReceipt> reportComputeResult(

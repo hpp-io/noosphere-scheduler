@@ -1,17 +1,13 @@
 package io.hpp.noosphere.scheduler.service.dto;
 
+import static io.hpp.noosphere.scheduler.config.Constants.ZERO_ADDRESS;
+
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.hpp.noosphere.scheduler.contracts.DelegateeCoordinator;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
-import lombok.*;
-import org.web3j.crypto.StructuredData;
-import org.web3j.crypto.StructuredData.Entry;
-import org.web3j.crypto.StructuredDataEncoder;
-import org.web3j.utils.Numeric;
-
 import java.io.Serializable;
 import java.math.BigInteger;
 import java.time.Instant;
@@ -20,8 +16,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-
-import static io.hpp.noosphere.scheduler.config.Constants.ZERO_ADDRESS;
+import lombok.*;
+import org.web3j.crypto.StructuredData;
+import org.web3j.crypto.StructuredData.Entry;
+import org.web3j.crypto.StructuredDataEncoder;
+import org.web3j.utils.Numeric;
 
 /**
  * Noosphere 구독 정보를 전송하기 위한 DTO
@@ -184,7 +183,7 @@ public class SubscriptionDTO implements Serializable {
      * 콜백 구독인지 확인 (간격이 0인 경우)
      */
     public boolean isCallback() {
-        return intervalSeconds != null && intervalSeconds == 0L;
+        return maxExecutions == 1 && intervalSeconds != null && intervalSeconds == 0L;
     }
 
     /**

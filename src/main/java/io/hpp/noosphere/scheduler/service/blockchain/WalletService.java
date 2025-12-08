@@ -1,14 +1,23 @@
 package io.hpp.noosphere.scheduler.service.blockchain;
 
+import static io.hpp.noosphere.scheduler.config.Constants.ZERO_ADDRESS;
+
 import io.hpp.noosphere.scheduler.config.ApplicationProperties;
 import io.hpp.noosphere.scheduler.service.blockchain.dto.SignatureParamsDTO;
 import io.hpp.noosphere.scheduler.service.blockchain.web3.Web3DelegateeCoordinatorService;
 import io.hpp.noosphere.scheduler.service.dto.SubscriptionDTO;
+import java.io.IOException;
+import java.math.BigInteger;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.locks.ReentrantLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.web3j.crypto.Credentials;
+import org.web3j.crypto.RawTransaction;
+import org.web3j.crypto.TransactionEncoder;
 import org.web3j.protocol.Web3j;
+import org.web3j.protocol.core.DefaultBlockParameterName;
 import org.web3j.protocol.core.methods.response.EthSendTransaction;
 import org.web3j.protocol.core.methods.response.TransactionReceipt;
 import org.web3j.protocol.exceptions.TransactionException;
@@ -16,14 +25,7 @@ import org.web3j.tx.RawTransactionManager;
 import org.web3j.tx.TransactionManager;
 import org.web3j.tx.response.PollingTransactionReceiptProcessor;
 import org.web3j.tx.response.TransactionReceiptProcessor;
-
-import java.io.IOException;
-import java.math.BigInteger;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.locks.ReentrantLock;
-
-import static io.hpp.noosphere.scheduler.config.Constants.ZERO_ADDRESS;
-
+import org.web3j.utils.Numeric;
 
 @Service
 public class WalletService {
@@ -37,8 +39,11 @@ public class WalletService {
     private final TransactionManager transactionManager;
     private final TransactionReceiptProcessor transactionReceiptProcessor;
 
-    // Lock to prevent race conditions when sending multiple transactions
-    private final ReentrantLock txLock = new ReentrantLock();
+    // Lock to synchronize nonce acquisition
+    private final ReentrantLock nonceLock = new ReentrantLock();
+
+    // In-memory nonce counter
+    private BigInteger nonce;
 
     public WalletService(
         Web3j web3j,
@@ -215,58 +220,151 @@ public class WalletService {
     }
 
     /**
+     * A public method to send a transaction with the given data and an optional gas limit.
+     *
+     * @param data The encoded transaction data.
+     * @param gasLimit The gas limit to use, or null to estimate.
+     * @return A CompletableFuture containing the transaction hash.
+     */
+    public CompletableFuture<String> sendTransaction(String data, Long gasLimit) {
+        return sendTransactionWithLock(() -> data, gasLimit);
+    }
+
+    /**
+     * Waits for the transaction receipt for a given transaction hash.
+     *
+     * @param txHash The hash of the transaction to wait for.
+     * @return A CompletableFuture containing the TransactionReceipt.
+     */
+    public CompletableFuture<TransactionReceipt> waitForReceipt(String txHash) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return transactionReceiptProcessor.waitForTransactionReceipt(txHash);
+            } catch (IOException | TransactionException e) {
+                log.error("Error waiting for transaction receipt for hash {}", txHash, e);
+                throw new RuntimeException("Failed to get transaction receipt", e);
+            }
+        });
+    }
+
+    /**
      * Acquires a lock and sends a transaction to prevent nonce collisions.
      * @param txDataSupplier A supplier for the transaction data payload.
      * @param gasLimit A specific gas limit, or null to let web3j estimate it.
      * @return A CompletableFuture containing the transaction hash.
      */
     private CompletableFuture<String> sendTransactionWithLock(java.util.function.Supplier<String> txDataSupplier, Long gasLimit) {
+        // Wrap the entire synchronized logic in a CompletableFuture to maintain the async API contract.
         return CompletableFuture.supplyAsync(() -> {
-            txLock.lock();
+            // Acquire a lock to ensure the entire process (nonce retrieval, signing, sending, waiting) is atomic.
+            // This serializes all transaction submissions from this service instance.
+            nonceLock.lock();
+            BigInteger nonceToSend = null;
             try {
-                String to = coordinatorService.getContractAddress() != null ? coordinatorService.getContractAddress() : ZERO_ADDRESS;
+                nonceToSend = getNextNonce(); // Get the correct next nonce for this transaction.
+                String to = coordinatorService.getContractAddress();
                 String data = txDataSupplier.get();
 
-                BigInteger gasPrice = web3j.ethGasPrice().send().getGasPrice();
-                BigInteger finalGasLimit;
+                // Simulate the transaction using eth_call to catch reverts early
+                try {
+                    org.web3j.protocol.core.methods.request.Transaction simulationTx =
+                        org.web3j.protocol.core.methods.request.Transaction.createEthCallTransaction(getAddress(), to, data);
+                    org.web3j.protocol.core.methods.response.EthCall response = web3j
+                        .ethCall(simulationTx, DefaultBlockParameterName.LATEST)
+                        .send();
 
-                if (gasLimit != null) {
-                    finalGasLimit = BigInteger.valueOf(gasLimit);
-                } else {
-                    // Estimate gas if not provided
-                    finalGasLimit = web3j
-                        .ethEstimateGas(
-                            org.web3j.protocol.core.methods.request.Transaction.createEthCallTransaction(getAddress(), to, data)
-                        )
-                        .send()
-                        .getAmountUsed();
+                    if (response.hasError()) {
+                        // 이 메시지에 노드가 반환한 revert 사유가 포함됩니다.
+                        throw new IOException("eth_call reverted: " + response.getError().getMessage());
+                    }
+                    if (response.isReverted()) {
+                        // revert 사유를 확인하는 또 다른 방법입니다.
+                        throw new IOException("eth_call reverted with reason: " + response.getRevertReason());
+                    }
+                } catch (IOException e) {
+                    // 이제 노드의 에러 메시지에 구체적인 revert 사유가 포함될 것입니다.
+                    log.error("Transaction simulation failed for nonce {}. Reason: {}", nonceToSend, e.getMessage());
+                    throw new RuntimeException("Transaction simulation failed", e);
                 }
 
-                EthSendTransaction ethSendTransaction = transactionManager.sendTransaction(
+                BigInteger gasPrice = web3j.ethGasPrice().send().getGasPrice();
+                BigInteger finalGasLimit = BigInteger.valueOf(gasLimit != null ? gasLimit : walletProperties.getMaxGasLimit());
+
+                // Create a raw transaction with the specific nonce
+                RawTransaction rawTransaction = RawTransaction.createTransaction(
+                    nonceToSend,
                     gasPrice,
                     finalGasLimit,
                     to,
-                    data,
-                    BigInteger.ZERO // value
+                    BigInteger.ZERO, // value
+                    data
                 );
 
+                // Sign the transaction and send it
+                byte[] signedMessage = TransactionEncoder.signMessage(rawTransaction, credentials);
+                String hexValue = Numeric.toHexString(signedMessage);
+                EthSendTransaction ethSendTransaction = web3j.ethSendRawTransaction(hexValue).send();
+
+                // Check for errors from the node before getting the hash
                 if (ethSendTransaction.hasError()) {
-                    throw new IOException("Error sending transaction: " + ethSendTransaction.getError().getMessage());
+                    throw new IOException(
+                        "Node returned an error on eth_sendRawTransaction: " + ethSendTransaction.getError().getMessage()
+                    );
                 }
 
                 String txHash = ethSendTransaction.getTransactionHash();
+                if (txHash == null) {
+                    throw new IOException(
+                        "Node returned a null transaction hash for nonce " +
+                        nonceToSend +
+                        ", possibly due to an invalid transaction (e.g., insufficient funds)."
+                    );
+                }
+
+                log.debug("Transaction sent with nonce {}. Hash: {}", nonceToSend, txHash);
+
                 TransactionReceipt receipt = transactionReceiptProcessor.waitForTransactionReceipt(txHash);
 
                 if (!receipt.isStatusOK()) {
-                    throw new TransactionException("Transaction failed with status: " + receipt.getStatus(), receipt);
+                    throw new TransactionException("Transaction failed on-chain with status: " + receipt.getStatus(), receipt);
                 }
-                return receipt.getTransactionHash();
-            } catch (IOException | TransactionException e) {
-                log.error("Error sending transaction", e);
+                return txHash;
+            } catch (Exception e) {
+                log.error("Error sending transaction with nonce {}", nonceToSend, e);
+                // If any step fails, reset the nonce. This forces the next transaction
+                // to re-synchronize with the network, preventing nonce gaps.
+                resetNonce();
                 throw new RuntimeException("Failed to send transaction", e);
             } finally {
-                txLock.unlock();
+                // Always release the lock when the operation is complete or has failed.
+                nonceLock.unlock();
             }
         });
+    }
+
+    private BigInteger getNextNonce() {
+        try {
+            if (nonce == null) {
+                // Initialize nonce from the network's pending transaction count.
+                nonce = web3j.ethGetTransactionCount(getAddress(), DefaultBlockParameterName.PENDING).send().getTransactionCount();
+                log.info("Initialized nonce from network: {}", nonce);
+            }
+            // Atomically get the current nonce and increment it for the next call.
+            BigInteger nextNonce = nonce;
+            nonce = nonce.add(BigInteger.ONE);
+            return nextNonce;
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to get initial nonce from the network", e);
+        }
+    }
+
+    private void resetNonce() {
+        nonceLock.lock();
+        try {
+            nonce = null; // Set to null to force re-initialization from the network on the next call
+            log.warn("Nonce has been reset due to a transaction failure. It will be re-synced from the network.");
+        } finally {
+            nonceLock.unlock();
+        }
     }
 }
