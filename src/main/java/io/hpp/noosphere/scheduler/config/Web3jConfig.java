@@ -1,7 +1,12 @@
 package io.hpp.noosphere.scheduler.config;
 
 import io.hpp.noosphere.scheduler.service.blockchain.KeystoreService;
+import java.io.IOException;
+import java.math.BigInteger;
+import java.util.concurrent.TimeUnit;
 import okhttp3.OkHttpClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.web3j.crypto.Credentials;
@@ -9,12 +14,10 @@ import org.web3j.protocol.Web3j;
 import org.web3j.protocol.http.HttpService;
 import org.web3j.tx.gas.DefaultGasProvider;
 
-import java.io.IOException;
-import java.math.BigInteger;
-import java.util.concurrent.TimeUnit;
-
 @Configuration
 public class Web3jConfig {
+
+    private static final Logger log = LoggerFactory.getLogger(Web3jConfig.class);
 
     private final ApplicationProperties.Chain chainConfig;
 
@@ -28,23 +31,26 @@ public class Web3jConfig {
     }
 
     @Bean
-    public Web3j web3j() {
-        String rpcUrl = chainConfig.getRpcUrl();
-
+    public OkHttpClient okHttpClient() {
         // Get timeout values in a null-safe way
         ApplicationProperties.Chain.Connection connection = chainConfig.getConnection();
-
         int connectTimeout = getTimeoutValue(connection != null ? connection.getTimeout() : null, DEFAULT_CONNECT_TIMEOUT);
         int readTimeout = getTimeoutValue(connection != null ? connection.getReadTimeout() : null, DEFAULT_READ_TIMEOUT);
         int writeTimeout = getTimeoutValue(connection != null ? connection.getWriteTimeout() : null, DEFAULT_WRITE_TIMEOUT);
 
-        OkHttpClient.Builder clientBuilder = new OkHttpClient.Builder()
+        // Create a standard OkHttpClient. The JVM will automatically use the truststore
+        // provided via the '-Djavax.net.ssl.trustStore' system property for HTTPS connections.
+        return new OkHttpClient.Builder()
             .connectTimeout(connectTimeout, TimeUnit.MILLISECONDS)
             .readTimeout(readTimeout, TimeUnit.MILLISECONDS)
-            .writeTimeout(writeTimeout, TimeUnit.MILLISECONDS);
+            .writeTimeout(writeTimeout, TimeUnit.MILLISECONDS)
+            .build();
+    }
 
-        HttpService httpService = new HttpService(rpcUrl, clientBuilder.build());
-        return Web3j.build(httpService);
+    @Bean
+    public Web3j web3j(OkHttpClient okHttpClient) {
+        String rpcUrl = chainConfig.getRpcUrl();
+        return Web3j.build(new HttpService(rpcUrl, okHttpClient, false));
     }
 
     /**
@@ -91,10 +97,18 @@ public class Web3jConfig {
     }
 
     @Bean
-    public BigInteger chainId(Web3j web3j) {
+    public BigInteger chainId(OkHttpClient okHttpClient) {
+        // Use the shared OkHttpClient to create a temporary Web3j instance.
+        // This prevents SSL errors and bean dependency cycles when fetching the chainId during startup.
+        String rpcUrl = chainConfig.getRpcUrl();
+        Web3j tempWeb3j = Web3j.build(new HttpService(rpcUrl, okHttpClient, false));
         try {
-            return web3j.ethChainId().send().getChainId();
+            return tempWeb3j.ethChainId().send().getChainId();
         } catch (IOException e) {
+            log.error(
+                "Failed to get chain ID from the RPC node. Please check the 'application.chain.rpcUrl' property, network connectivity, and SSL truststore settings.",
+                e
+            );
             throw new RuntimeException("Failed to get chain ID", e);
         }
     }
