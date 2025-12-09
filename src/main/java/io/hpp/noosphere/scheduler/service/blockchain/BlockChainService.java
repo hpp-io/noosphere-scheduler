@@ -9,6 +9,7 @@ import io.hpp.noosphere.scheduler.service.dto.OnchainRequestDTO;
 import io.hpp.noosphere.scheduler.service.dto.SubscriptionDTO;
 import java.math.BigInteger;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -35,6 +36,7 @@ public class BlockChainService {
     private final Map<Long, SubscriptionDTO> subscriptions = new ConcurrentHashMap<>();
     private final Map<SubscriptionRunKey, String> pendingTxs = new ConcurrentHashMap<>();
     private final Map<SubscriptionRunKey, AtomicInteger> txAttempts = new ConcurrentHashMap<>();
+    private final Set<SubscriptionRunKey> committedIntervals = ConcurrentHashMap.newKeySet();
 
     public BlockChainService(Web3j web3j, CoordinatorService coordinator, WalletService wallet, Web3DelegatorService web3DelegatorService) {
         this.web3j = web3j;
@@ -91,6 +93,12 @@ public class BlockChainService {
             return CompletableFuture.completedFuture(new ShouldProcessResult(false, null)); // Already processing
         }
 
+        // 커밋먼트가 이미 확인된 경우, 불필요한 RPC 호출을 건너뜁니다.
+        if (committedIntervals.contains(runKey)) {
+            log.trace("Skipping sub {}, interval {}: Commitment already found in cache.", subId, interval);
+            return CompletableFuture.completedFuture(new ShouldProcessResult(false, null));
+        }
+
         if (txAttempts.getOrDefault(runKey, new AtomicInteger(0)).get() >= 3) {
             log.warn("Subscription {} has exceeded max retries for interval {}.", subId, interval);
             return CompletableFuture.completedFuture(new ShouldProcessResult(false, null));
@@ -100,9 +108,8 @@ public class BlockChainService {
             .hasRequestCommitments(BigInteger.valueOf(subscription.getId()), BigInteger.valueOf(interval))
             .thenCompose(hasCommitment -> {
                 if (hasCommitment) {
-                    return coordinator
-                        .getCommitment(subscription.getId(), interval)
-                        .thenApply(commitment -> new ShouldProcessResult(false, coordinator.encodeCommitment(commitment)));
+                    committedIntervals.add(runKey);
+                    return CompletableFuture.completedFuture(new ShouldProcessResult(false, null));
                 } else {
                     return CompletableFuture.completedFuture(new ShouldProcessResult(true, null));
                 }
@@ -139,6 +146,7 @@ public class BlockChainService {
 
         pendingTxs.keySet().removeIf(key -> key.subscriptionId().equals(subscriptionId));
         txAttempts.keySet().removeIf(key -> key.subscriptionId().equals(subscriptionId));
+        committedIntervals.removeIf(key -> key.subscriptionId().equals(subscriptionId));
 
         log.info("Stopped tracking subscription: {}", subscriptionId);
     }
