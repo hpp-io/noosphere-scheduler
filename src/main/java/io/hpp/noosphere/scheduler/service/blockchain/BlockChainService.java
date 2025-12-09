@@ -78,11 +78,11 @@ public class BlockChainService {
     }
 
     private CompletableFuture<ShouldProcessResult> shouldProcess(SubscriptionIdentifier subId, SubscriptionDTO subscription) {
-        if (subscription.isCallback()) {
+        if (subscription.isCallback() || subscription.isCompleted()) {
             stopTracking(subId);
             return CompletableFuture.completedFuture(new ShouldProcessResult(false, null));
         }
-        if (!subscription.isActive()) {
+        if (!subscription.isActive() || subscription.getInterval() == 1) {
             return CompletableFuture.completedFuture(new ShouldProcessResult(false, null));
         }
 

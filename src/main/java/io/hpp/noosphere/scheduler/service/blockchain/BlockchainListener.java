@@ -231,23 +231,24 @@ public class BlockchainListener implements ApplicationListener<ApplicationReadyE
                     continue;
                 }
                 long currentId = (long) startId + i;
-                subscriptions.add(
-                    SubscriptionDTO.builder()
-                        .id(currentId)
-                        .routeId(new String(contractSubscriptions.get(i).routeId, StandardCharsets.UTF_8).replaceAll("\\x00+$", ""))
-                        .containerId(Arrays.toString(contractSubscriptions.get(i).containerId))
-                        .feeAmount(contractSubscriptions.get(i).feeAmount)
-                        .feeToken(contractSubscriptions.get(i).feeToken)
-                        .client(contractSubscriptions.get(i).client)
-                        .activeAt(contractSubscriptions.get(i).activeAt.longValue())
-                        .intervalSeconds(contractSubscriptions.get(i).intervalSeconds.longValue())
-                        .maxExecutions(contractSubscriptions.get(i).maxExecutions.longValue())
-                        .wallet(contractSubscriptions.get(i).wallet)
-                        .verifier(contractSubscriptions.get(i).verifier)
-                        .redundancy(contractSubscriptions.get(i).redundancy.intValue())
-                        .useDeliveryInbox(contractSubscriptions.get(i).useDeliveryInbox)
-                        .build()
-                );
+                SubscriptionDTO subscriptionDTO = SubscriptionDTO.builder()
+                    .id(currentId)
+                    .routeId(new String(contractSubscriptions.get(i).routeId, StandardCharsets.UTF_8).replaceAll("\\x00+$", ""))
+                    .containerId(Arrays.toString(contractSubscriptions.get(i).containerId))
+                    .feeAmount(contractSubscriptions.get(i).feeAmount)
+                    .feeToken(contractSubscriptions.get(i).feeToken)
+                    .client(contractSubscriptions.get(i).client)
+                    .activeAt(contractSubscriptions.get(i).activeAt.longValue())
+                    .intervalSeconds(contractSubscriptions.get(i).intervalSeconds.longValue())
+                    .maxExecutions(contractSubscriptions.get(i).maxExecutions.longValue())
+                    .wallet(contractSubscriptions.get(i).wallet)
+                    .verifier(contractSubscriptions.get(i).verifier)
+                    .redundancy(contractSubscriptions.get(i).redundancy.intValue())
+                    .useDeliveryInbox(contractSubscriptions.get(i).useDeliveryInbox)
+                    .build();
+                if (!subscriptionDTO.isCompleted()) {
+                    subscriptions.add(subscriptionDTO);
+                }
             }
 
             updateResponseCountsForLastInterval(subscriptions, blockNumber).join();
