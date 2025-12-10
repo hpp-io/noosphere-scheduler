@@ -116,8 +116,7 @@ public class BlockChainService {
             })
             .exceptionally(ex -> {
                 // Stop tracking if the subscription is cancelled or non-existent
-                String errorMsg = ex.getMessage();
-                if (errorMsg != null && errorMsg.contains("execution reverted")) {
+                if (containsErrorInChain(ex, "execution reverted") || containsErrorInChain(ex, "Transaction simulation failed")) {
                     log.warn("Subscription {} appears to be cancelled or non-existent on-chain. Stopping tracking.", subId);
                     stopTracking(subId);
                 }
@@ -148,6 +147,26 @@ public class BlockChainService {
                     });
             }
         });
+    }
+
+    /**
+     * Checks if the exception chain contains a specific error message.
+     * This method traverses the entire exception chain (including causes) to find the error.
+     *
+     * @param ex The exception to check
+     * @param errorText The error text to search for
+     * @return true if the error text is found anywhere in the exception chain
+     */
+    private boolean containsErrorInChain(Throwable ex, String errorText) {
+        Throwable current = ex;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null && message.contains(errorText)) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     private void stopTracking(SubscriptionIdentifier subscriptionId) {
@@ -197,9 +216,8 @@ public class BlockChainService {
                 log.error("Error preparing next interval for sub {}, interval {}", id, interval, ex);
 
                 // Stop tracking if the subscription is cancelled or non-existent
-                String errorMsg = ex.getMessage();
-                if (errorMsg != null && (errorMsg.contains("execution reverted") || errorMsg.contains("Transaction simulation failed"))) {
-                    log.error("Subscription {} appears to be cancelled or invalid on-chain. Stopping tracking.", id);
+                if (containsErrorInChain(ex, "execution reverted") || containsErrorInChain(ex, "Transaction simulation failed")) {
+                    log.warn("Subscription {} appears to be cancelled or invalid on-chain. Stopping tracking.", id);
                     stopTracking(id);
                 } else {
                     // Remove 'BLOCKED_TX' on failure to allow for a retry.
