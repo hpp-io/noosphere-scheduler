@@ -198,8 +198,8 @@ public class BlockChainService {
 
                 // Stop tracking if the subscription is cancelled or non-existent
                 String errorMsg = ex.getMessage();
-                if (errorMsg != null && (errorMsg.contains("execution x") || errorMsg.contains("Transaction simulation failed"))) {
-                    log.warn("Subscription {} appears to be cancelled or invalid on-chain. Stopping tracking.", id);
+                if (errorMsg != null && (errorMsg.contains("execution reverted") || errorMsg.contains("Transaction simulation failed"))) {
+                    log.error("Subscription {} appears to be cancelled or invalid on-chain. Stopping tracking.", id);
                     stopTracking(id);
                 } else {
                     // Remove 'BLOCKED_TX' on failure to allow for a retry.
