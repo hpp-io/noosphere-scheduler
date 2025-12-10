@@ -113,6 +113,15 @@ public class BlockChainService {
                 } else {
                     return CompletableFuture.completedFuture(new ShouldProcessResult(true, null));
                 }
+            })
+            .exceptionally(ex -> {
+                // Stop tracking if the subscription is cancelled or non-existent
+                String errorMsg = ex.getMessage();
+                if (errorMsg != null && errorMsg.contains("execution reverted")) {
+                    log.warn("Subscription {} appears to be cancelled or non-existent on-chain. Stopping tracking.", subId);
+                    stopTracking(subId);
+                }
+                return new ShouldProcessResult(false, null);
             });
     }
 
@@ -186,8 +195,16 @@ public class BlockChainService {
             })
             .exceptionally(ex -> {
                 log.error("Error preparing next interval for sub {}, interval {}", id, interval, ex);
-                // Also remove 'BLOCKED_TX' on exception to allow for a retry.
-                pendingTxs.remove(runKey);
+
+                // Stop tracking if the subscription is cancelled or non-existent
+                String errorMsg = ex.getMessage();
+                if (errorMsg != null && (errorMsg.contains("execution x") || errorMsg.contains("Transaction simulation failed"))) {
+                    log.warn("Subscription {} appears to be cancelled or invalid on-chain. Stopping tracking.", id);
+                    stopTracking(id);
+                } else {
+                    // Remove 'BLOCKED_TX' on failure to allow for a retry.
+                    pendingTxs.remove(runKey);
+                }
                 return null;
             });
     }
