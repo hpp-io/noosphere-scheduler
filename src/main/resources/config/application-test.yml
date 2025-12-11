@@ -116,7 +116,7 @@ application:
   chain:
     enabled: true
     rpcUrl: '${HPP_RPC_URL:}'
-    trailHeadBlocks: 10
+    trailHeadBlocks: 0
     routerAddress: '${HPP_ROUTER_ADDRESS:}'
     wallet:
       maxGasLimit: 1000000
